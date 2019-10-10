@@ -468,7 +468,10 @@ int Execute ( DecodedInstr* d, RegVals* rVals) {
       *** 
       * Whatever is done mark it as done
       ***
-
+Pretty sure the values were swapped here too like rd(first input register) is actually stored in rVals->R_rt
+Will have to keep running debug until R-type is executed to see what values need to be changed, but close
+As of now bne and beq are only returning t/f to rs == rt not sure if we should return jump addr instead, also again
+ need to double check reg values are correctly used
       R-format instructions to implement
       --------------------------------
       * addu Rdest, Rsrc1, Rsrc2    - done
@@ -479,6 +482,8 @@ int Execute ( DecodedInstr* d, RegVals* rVals) {
       * or   Rdest, Rsrc1, Rsrc2
       * slt  Rdest, Rsrc1, Rsrc2
 
+ So the inputs were a little funky you can see I put comments about the values being taken in for rs and rt,
+ for sure sorted for I format, we would just need to talk out the names to make sure all the rVals are labeled correctly
       I-format instructions to implement
       --------------------------
       * ori   Rdest, Rsrc, imm
@@ -491,6 +496,7 @@ int Execute ( DecodedInstr* d, RegVals* rVals) {
       * sw    Rdest, offset (Radd) 
 
 
+     Need to confirm which addresses should be send to PC but its close
       J-format instructions to implement
       --------------------------
       * j   address
@@ -499,8 +505,97 @@ int Execute ( DecodedInstr* d, RegVals* rVals) {
       
 
       */
+ 
+ 
+       /* addu, addiu, subu, sll, srl, and, andi, or, ori, lui, slt,
+``     * beq, bne, jal, jr, lw, sw */
+        //d has all register number, rVals should hold numerical value
 
-    char opName[6] = " ";
+        int rd = 0; //return value sent to register
+        switch(d->type){
+                //Need to get type to know how to get registers & their values
+                case 0: 
+                        switch(d->op){
+                                case 0: //sll rd, rs, shampt (rd = rt<<shampt)
+                                        rd = (rVals->R_rs)<<(d->regs.r.shamt); 
+                                        return rd;
+                                        break;
+                                case 2: //srl rd, rs, shampt (rd = rt>>shampt)
+                                        rd = (rVals->R_rs)>>(d->regs.r.shamt);
+                                        return rd;      
+                                        break;
+                                case 8: //jr rs (PC = JumpAddr)
+                                        return d->regs.j.target;
+                                        break;
+                                case 21://addu rd, rs, rt (rd = rs + rt)
+                                        rd = (rVals->R_rs) + (rVals->R_rt);
+                                        return rd;
+                                        break;
+                                case 23://subu rd, rs, rt (rd = rs - rt)
+                                        rd = (rVals->R_rs) -(rVals->R_rt);
+                                        return rd;
+                                        break;
+                                case 24://and rd, rs, rt (rd = rs & rt)
+                                        rd = (rVals->R_rs) & (rVals->R_rt);
+                                        return rd;
+                                        break;
+                                case 25://or rd, rs, rt (rd = rs | rt)
+                                        rd = (rVals->R_rs) | (rVals->R_rt);
+                                        return rd;
+                                        break;
+                                case 43://slt rd, rs, rt (rd = rs < rt)
+                                        if(rVals->R_rs < rVals->R_rt)
+                                                return 1;
+                                        else
+                                                return 0;
+                                        break;
+                        }
+                        break;
+               case 1:
+                        switch(d->op){
+                                case 4: //beq rs, rt, raddr (if rs == rt --> PC+4+addr)
+                                        return (rVals->R_rt == rVals->R_rs);
+                                        break;
+                                case 5://bne rs, rt, raddr (if rs != rt --> PC+4+addr)
+                                        return (rVals->R_rt != rVals->R_rs);
+                                        break;
+                                case 9://addiu rt, rs, imm (rt = rs + imm)
+                                        //Note: names are wrong rt holds the second given reg,
+                                        //and rs holds the first given register
+                                        rd = (rVals->R_rt + d->regs.i.addr_or_immed);
+                                        return rd;      
+                                        break;
+                                case 12://andi rd, rs, imm (rt = rs & zeroExtImm)
+                                        rd = (rVals->R_rt) & (d->regs.i.addr_or_immed);
+                                        return rd;
+                                        break;
+                                case 13://ori (rt = rs | zeroExtImm)
+                                        rd = (rVals->R_rt) | (d->regs.i.addr_or_immed);
+                                        return rd;
+                                        break;
+                                case 15://lui rd, imm (rt = imm<<16)
+                                        rd = (d->regs.i.addr_or_immed)<<16;
+                                        return rd;
+                                        break;
+                        }
+                        break;
+                case 2:
+                        switch(d->op){
+                                case 2://j (pc = jumpAddr)
+                                        return (d->regs.j.target);
+                                        break;
+                                case 3://jal (r31 = pc, pc =target <<2)
+                                        rd = (d->regs.j.target<<2);
+                                        return rd;
+                                        break;
+                        }
+        }
+
+
+     return 0;
+
+ 
+    /*char opName[6] = " ";
     getOpName(opName, d);
 
     // R-format
@@ -544,7 +639,7 @@ int Execute ( DecodedInstr* d, RegVals* rVals) {
 
     }
 
-    return 0;
+    return 0;*/
 }
 
 /* 
